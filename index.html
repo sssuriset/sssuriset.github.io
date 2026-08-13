@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sumana Surisetti</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/vsalvino/computer-modern@main/fonts/serif.css">
+<meta name="description" content="Astronomy and Astrophysics undergraduate at Florida Tech. Spacecraft flight software, state estimation, and rendezvous simulation.">
+
+<style>
+/* ============================================================
+   TOKENS
+   --sky, --stroke, --star-op are written by JS on every frame.
+   Everything else is static.
+   ============================================================ */
+:root{
+  --sky:#D6DFE6;
+  --stroke:#1E262E;
+  --star-op:0;
+  --accent:#fc6c85;            /* one variable, swap freely */
+  --font-body:"Computer Modern Serif",Latin Modern Roman,Georgia,serif;
+  --font-mono:"Computer Modern Serif",Latin Modern Roman,Georgia,serif;
+  --measure:38ch;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;
+  font-family:var(--font-body);
+  color:var(--stroke);
+  background:#03050B;
+  overflow-x:hidden;
+}
+
+/* ============================================================
+   BACKDROP
+   ============================================================ */
+.sky{
+  position:fixed;inset:0;z-index:0;
+  background:var(--sky);
+  transition:background-color .12s linear;
+}
+.starfield{
+  position:fixed;inset:0;z-index:1;
+  opacity:var(--star-op);
+  pointer-events:none;
+  will-change:background-position;
+}
+.starfield.far{
+  background-image:
+    radial-gradient(1px 1px at 24px 38px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 96px 12px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 152px 88px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 210px 44px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 268px 130px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 42px 168px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 118px 204px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 186px 250px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 256px 196px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 74px 274px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 292px 62px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 8px 112px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 140px 152px,#fff 50%,transparent 51%),
+    radial-gradient(1px 1px at 224px 292px,#fff 50%,transparent 51%);
+  background-size:300px 300px;
+  background-repeat:repeat;
+  opacity:calc(var(--star-op) * .55);
+}
+.starfield.near{
+  background-image:
+    radial-gradient(1.6px 1.6px at 58px 70px,#fff 50%,transparent 51%),
+    radial-gradient(1.4px 1.4px at 176px 26px,#fff 50%,transparent 51%),
+    radial-gradient(1.8px 1.8px at 300px 118px,#fff 50%,transparent 51%),
+    radial-gradient(1.3px 1.3px at 92px 236px,#fff 50%,transparent 51%),
+    radial-gradient(1.7px 1.7px at 244px 320px,#fff 50%,transparent 51%),
+    radial-gradient(1.4px 1.4px at 384px 190px,#fff 50%,transparent 51%),
+    radial-gradient(1.9px 1.9px at 20px 348px,#fff 50%,transparent 51%),
+    radial-gradient(1.3px 1.3px at 340px 44px,#fff 50%,transparent 51%),
+    radial-gradient(1.5px 1.5px at 132px 380px,#fff 50%,transparent 51%);
+  background-size:420px 420px;
+  background-repeat:repeat;
+}
+
+/* ============================================================
+   HUD  — altitude readout
+   ============================================================ */
+.hud{
+  position:fixed;z-index:40;
+  left:clamp(14px,3vw,32px);bottom:clamp(14px,3vw,28px);
+  font-family:var(--font-mono);
+  color:var(--stroke);
+  pointer-events:none;
+  line-height:1.35;
+}
+.hud .k{
+  display:block;
+  font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;
+  opacity:.55;
+}
+.hud .v{
+  display:block;
+  font-size:clamp(15px,2.6vw,20px);
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.01em;
+}
+.hud .scale{
+  display:block;margin-top:.35rem;
+  font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;opacity:.4;
+}
+
+/* ============================================================
+   JUMP NAV — hidden until first scroll
+   ============================================================ */
+.jump{
+  position:fixed;z-index:41;
+  right:clamp(10px,2.4vw,26px);top:50%;
+  transform:translateY(-50%) translateX(10px);
+  opacity:0;visibility:hidden;
+  transition:opacity .35s ease,transform .35s ease,visibility .35s;
+  font-family:var(--font-mono);
+}
+.jump.on{opacity:1;visibility:visible;transform:translateY(-50%) translateX(0)}
+.jump ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.jump a{
+  display:flex;align-items:center;justify-content:flex-end;gap:.5rem;
+  padding:3px 0;text-decoration:none;color:var(--stroke);
+  font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+}
+.jump .lbl{
+  opacity:0;transform:translateX(4px);
+  transition:opacity .14s ease,transform .14s ease;
+  white-space:nowrap;
+}
+.jump .tick{width:16px;height:1px;background:currentColor;opacity:.35;transition:opacity .2s,width .2s}
+.jump a:hover .lbl,.jump a:focus-visible .lbl{opacity:.85;transform:none}
+.jump a:hover .tick,.jump a:focus-visible .tick{opacity:.9;width:24px}
+.jump a[aria-current="true"] .tick{opacity:1;width:26px;background:var(--accent)}
+.jump a[aria-current="true"] .lbl{opacity:.85;transform:none}
+@media(max-width:720px){.jump{display:none}}
+
+@media(max-width:899px){
+  .hud{
+    left:0;right:0;top:0;bottom:auto;
+    display:flex;align-items:baseline;gap:.55rem;
+    padding:7px clamp(14px,4vw,20px) 8px;
+    background:var(--sky);
+    border-bottom:1px solid currentColor;
+  }
+  .hud .k{font-size:8.5px;letter-spacing:.14em;opacity:.5}
+  .hud .v{font-size:13px}
+  .hud .scale{display:none}
+  .stop,#sat .sticky{padding-top:16vh}
+}
+
+/* ============================================================
+   STOPS
+   ============================================================ */
+main{position:relative;z-index:10}
+
+.masthead{display:block;text-align:left}
+.mast{max-width:52rem;margin:0 auto;width:100%}
+.mast h1{
+  font-size:clamp(2.4rem,7.5vw,4.6rem);
+  font-weight:400;line-height:1.02;letter-spacing:-.01em;margin:0 0 1rem;
+}
+.tagline{font-size:clamp(1rem,2.2vw,1.28rem);max-width:40ch;margin:0 0 2.4rem;opacity:.8}
+.mast-links{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.6rem 2rem}
+.mast-links a{
+  font-family:var(--font-mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--stroke);text-decoration:none;border-bottom:1px solid var(--accent);padding-bottom:3px;
+}
+.mast-links a:hover,.mast-links a:focus-visible{color:var(--accent)}
+.mast-cue{
+  margin:4.5rem 0 0;font-family:var(--font-mono);
+  font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.45;
+}
+
+.stop{
+  min-height:100vh;
+  display:grid;
+  align-items:center;
+  padding:11vh clamp(18px,6vw,80px) 24vh;
+  position:relative;
+}
+@media(min-width:900px){
+  .stop{grid-template-columns:1fr 1fr;gap:clamp(24px,5vw,72px)}
+  .stop.flip .art{order:2}
+  .stop.flip .copy{order:1}
+}
+
+.art{
+  display:flex;align-items:center;justify-content:center;
+  color:var(--stroke);
+  will-change:transform;
+  transform:translateY(calc((var(--p,.5) - .5) * 46px));
+}
+.art svg{width:100%;height:auto;max-width:min(74vw,440px);overflow:visible}
+.art svg *{vector-effect:non-scaling-stroke}
+
+.copy{max-width:var(--measure)}
+.eyebrow{
+  font-family:var(--font-mono);
+  font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+  opacity:.55;margin:0 0 .7rem;
+}
+.copy h2{
+  font-size:clamp(1.35rem,3.4vw,2rem);
+  font-weight:600;line-height:1.12;letter-spacing:-.01em;
+  margin:0 0 .8rem;
+}
+.copy p{font-size:clamp(.9rem,1.6vw,1rem);line-height:1.62;margin:0 0 .8rem;opacity:.86}
+.copy p:last-of-type{margin-bottom:0}
+.stat{
+  font-family:var(--font-mono);
+  font-size:11.5px;letter-spacing:.02em;
+  margin:1rem 0 0;padding-top:.7rem;
+  border-top:1px solid currentColor;
+  opacity:.7;
+}
+.stat span{display:block;padding:.16rem 0}
+.link{
+  display:inline-block;margin-top:1rem;
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;
+  color:var(--stroke);text-decoration:none;
+  border-bottom:1px solid currentColor;padding-bottom:2px;
+}
+.link:hover,.link:focus-visible{color:var(--accent)}
+.todo{color:var(--accent);font-family:var(--font-mono);font-size:11.5px;letter-spacing:.02em}
+
+/* ---------- ascent ---------- */
+#ascent{min-height:240vh;display:block;padding:0}
+#ascent .sticky{
+  position:sticky;top:0;height:100vh;
+  display:flex;align-items:center;justify-content:center;
+}
+#ascent .rocket{
+  color:var(--stroke);
+  transform:translateY(calc((.5 - var(--a,0)) * 26vh)) scale(calc(1 - var(--a,0) * .45));
+  opacity:calc(1 - max(0, var(--a,0) - .74) * 3.85);
+}
+#ascent .rocket svg{width:clamp(84px,11vw,136px);height:auto;overflow:visible}
+#ascent .plume{opacity:calc(min(1, var(--a,0) * 5) * (1 - max(0, var(--a,0) - .74) * 3.85))}
+#ascent .plume line{stroke:var(--accent)}
+#ascent .readout{
+  position:absolute;left:50%;top:calc(50% + 22vh);transform:translateX(-50%);
+  font-family:var(--font-mono);font-size:10px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--stroke);opacity:calc(.5 * (1 - var(--a,0)));
+  white-space:nowrap;
+}
+
+/* ---------- satellite: two faces ---------- */
+#sat{display:block;padding:0;position:relative}
+#sat .rig{padding:0 clamp(18px,6vw,80px)}
+@media(min-width:900px){
+  #sat .rig{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,5vw,72px);align-items:start}
+}
+.sat-anchor{position:absolute;left:0;width:1px;height:1px;overflow:hidden}
+.flipper{
+  position:sticky;top:0;height:100vh;
+  perspective:1400px;display:flex;align-items:center;justify-content:center;
+}
+@media(max-width:899px){.flipper{height:56vh;top:14vh}}
+.flipper .inner{
+  position:relative;width:100%;max-width:min(74vw,420px);
+  transform-style:preserve-3d;
+  transform:rotateY(calc(var(--f,0) * 180deg));
+  color:var(--stroke);
+}
+.flipper .face{backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.flipper .face.b{position:absolute;inset:0;transform:rotateY(180deg)}
+.flipper svg{width:100%;height:auto;overflow:visible}
+.flipper svg *{vector-effect:non-scaling-stroke}
+.faces{padding:22vh 0 26vh}
+.faces .copy{max-width:var(--measure)}
+.faces .copy.b{margin-top:46vh}
+
+/* ---------- contact ---------- */
+#contact{min-height:auto;padding-bottom:16vh;display:block}
+#contact .inner{max-width:52rem;margin:0 auto}
+#contact h2{font-size:clamp(1.6rem,4.5vw,2.6rem);font-weight:600;margin:0 0 .5rem;letter-spacing:-.015em}
+#contact .sub{opacity:.7;margin:0 0 2.4rem;max-width:44ch}
+.contact-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.6rem 2rem}
+.contact-list a{
+  font-family:var(--font-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--stroke);text-decoration:none;border-bottom:1px solid var(--accent);padding-bottom:3px;
+}
+.contact-list a:hover,.contact-list a:focus-visible{color:var(--accent)}
+.colophon{
+  margin-top:4rem;padding-top:1rem;border-top:1px solid currentColor;
+  font-family:var(--font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.4;
+}
+
+@media(min-width:900px) and (max-height:840px){
+  .stop{padding:8vh clamp(18px,6vw,80px) 18vh}
+  .copy h2{font-size:1.5rem;margin-bottom:.6rem}
+  .copy p{font-size:.895rem;line-height:1.5;margin-bottom:.62rem}
+  .eyebrow{margin-bottom:.55rem}
+  .stat{font-size:10.5px;margin-top:.75rem;padding-top:.55rem}
+  .link{margin-top:.8rem}
+  .hud .v{font-size:15px}
+  .art svg{max-width:min(60vw,360px)}
+}
+
+a:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:1px}
+
+/* ============================================================
+   REDUCED MOTION — everything stacks, nothing moves
+   ============================================================ */
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .sky{transition:none;background:#0B1220}
+  .starfield{display:none}
+  .art{transform:none}
+  #ascent{min-height:auto}
+  #ascent .sticky{position:static;height:auto;padding:14vh 0}
+  #ascent .rocket{transform:none;opacity:1}
+  #ascent .plume{opacity:1}
+  #ascent .readout{display:none}
+  #sat .rig{display:block}
+  .flipper{position:static;height:auto;perspective:none}
+  .flipper .inner{transform:none}
+  .flipper .face.b{position:static;transform:none;margin-top:2rem;opacity:1}
+  .faces{padding:2rem 0 0}
+  .faces .copy.b{margin-top:3rem}
+  .jump{display:none}
+  .hud{display:none}
+}
+</style>
+</head>
+
+<body>
+
+<div class="sky" aria-hidden="true"></div>
+<div class="starfield far" aria-hidden="true" data-depth="0.06" data-tile="300"></div>
+<div class="starfield near" aria-hidden="true" data-depth="0.14" data-tile="420"></div>
+
+<div class="hud" aria-hidden="true">
+  <span class="k">Distance from Earth</span>
+  <span class="v" id="alt">Ground</span>
+</div>
+
+<nav class="jump" id="jump" aria-label="Jump to section">
+  <ol>
+    <li><a href="#top"><span class="lbl">Top</span><span class="tick"></span></a></li>
+    <li><a href="#ortega"><span class="lbl">Ortega</span><span class="tick"></span></a></li>
+    <li><a href="#pad"><span class="lbl">Rocket Lab</span><span class="tick"></span></a></li>
+    <li><a href="#iss"><span class="lbl">Flight software</span><span class="tick"></span></a></li>
+    <li><a href="#sat-a"><span class="lbl">Attitude control</span><span class="tick"></span></a></li>
+    <li><a href="#sat-b"><span class="lbl">cFS</span><span class="tick"></span></a></li>
+    <li><a href="#moon"><span class="lbl">Lunar imaging</span><span class="tick"></span></a></li>
+    <li><a href="#comet"><span class="lbl">Orbit integrators</span><span class="tick"></span></a></li>
+    <li><a href="#sun"><span class="lbl">PFSS mapping</span><span class="tick"></span></a></li>
+    <li><a href="#starstop"><span class="lbl">Light curves</span><span class="tick"></span></a></li>
+    <li><a href="#bh"><span class="lbl">Ray tracer</span><span class="tick"></span></a></li>
+    <li><a href="#galaxies"><span class="lbl">Hubble constant</span><span class="tick"></span></a></li>
+    <li><a href="#cmb"><span class="lbl">CMB peaks</span><span class="tick"></span></a></li>
+    <li><a href="#contact"><span class="lbl">Contact</span><span class="tick"></span></a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ========================= 00 HEADER ========================= -->
+<section class="stop masthead" id="top">
+  <div class="mast">
+    <h1>Sumana Surisetti</h1>
+    <p class="tagline">Flight software, state estimation, and rendezvous simulation. Astronomy and Astrophysics at Florida Tech, 2028.</p>
+    <ul class="mast-links">
+      <li><a href="resume.pdf">Resume</a></li>
+      <li><a href="#contact">Contact</a></li>
+      <li><a href="https://github.com/sssuriset">GitHub</a></li>
+      <li><a href="https://www.linkedin.com/in/ssurisetti/">LinkedIn</a></li>
+    </ul>
+    <p class="mast-cue" aria-hidden="true">Scroll to launch</p>
+  </div>
+</section>
+
+<!-- ========================= 01 ORTEGA ========================= -->
+<section class="stop" id="ortega">
+  <div class="art">
+    <svg viewBox="0 0 400 300" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Line drawing of an observatory dome with an open slit">
+      <!-- dome -->
+      <path d="M132 152a68 68 0 0 1 136 0"/>
+      <!-- slit -->
+      <path d="M188 86.5a68 68 0 0 0-2 65.5"/>
+      <path d="M212 86.5a68 68 0 0 1 2 65.5"/>
+      <path d="M188 86.5h24"/>
+      <!-- telescope in the slit -->
+      <path d="M197 148V112"/><path d="M203 148V112"/>
+      <path d="M193.5 112h13"/>
+      <path d="M200 112v-9"/>
+      <circle cx="200" cy="99" r="4"/>
+      <!-- drum -->
+      <path d="M132 152v42"/><path d="M268 152v42"/>
+      <path d="M132 194h136"/>
+      <path d="M132 172h136" opacity=".4"/>
+      <!-- base building -->
+      <path d="M112 194h176v56H112z"/>
+      <path d="M112 216h176" opacity=".4"/>
+      <path d="M186 250v-26h28v26"/>
+      <path d="M136 228h20v14h-20z" opacity=".7"/>
+      <path d="M244 228h20v14h-20z" opacity=".7"/>
+      <!-- pier + ground -->
+      <path d="M92 250h216"/>
+      <!-- sight line -->
+      <path d="M200 99 214 44" stroke-dasharray="3 5" opacity=".5"/>
+      <circle cx="216" cy="38" r="2" opacity=".6"/>
+    </svg>
+  </div>
+  <div class="copy">
+    <p class="eyebrow">Ground level &middot; Melbourne, Florida</p>
+    <h2>Ortega Observatory</h2>
+    <p>Research associate with the Astronomical Research and Engineering Society since September 2023. Teaches students to analyze observational datasets with computational methods, covering FITS file processing and spectroscopy in a lab setting.</p>
+    <p>Runs telescope operations and public outreach through the observatory. Reviews senior design and research documentation for technical clarity, organization, and methodological accuracy.</p>
+    <p class="stat">
+      <span>September 2023 to present</span>
+      <span>FITS processing, spectroscopy, telescope operations</span>
+    </p>
+  </div>
+</section>
+
+<!-- ========================= 02 PAD ========================= -->
+<section class="stop flip" id="pad">
+  <div class="art">
+    <svg viewBox="0 0 400 300" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Line drawing of a high-power rocket on a launch rail">
+      <!-- rail -->
+      <path d="M150 250V54"/>
+      <path d="M144 54h12"/>
+      <path d="M147 240h6M147 200h6M147 160h6M147 120h6M147 80h6" opacity=".5"/>
+      <!-- rocket body -->
+      <path d="M186 96v128h32V96"/>
+      <path d="M186 96c0-30 10-52 16-62 6 10 16 32 16 62"/>
+      <path d="M186 122h32" opacity=".45"/>
+      <path d="M186 186h32" opacity=".45"/>
+      <!-- rail buttons -->
+      <path d="M186 130h-8M186 194h-8"/>
+      <!-- fins -->
+      <path d="M186 190l-22 34v-14"/>
+      <path d="M164 224h22"/>
+      <path d="M218 190l22 34v-14"/>
+      <path d="M240 224h-22"/>
+      <path d="M202 224v14" opacity=".5"/>
+      <!-- nozzle -->
+      <path d="M194 224h16l-4 12h-8z"/>
+      <!-- pad -->
+      <path d="M120 250h160"/>
+      <path d="M132 250l-8 12M268 250l8 12" opacity=".6"/>
+      <!-- deflector -->
+      <path d="M226 250c14-6 22-16 24-26" opacity=".45"/>
+    </svg>
+  </div>
+  <div class="copy">
+    <p class="eyebrow">Ground level &middot; Panther Rocket Lab</p>
+    <h2>High-power rocket</h2>
+    <p>Designed, built, and launched a high-power rocket under Level 1 certification requirements. The nose cone, fins, and the internal mount that holds components inside the tube were 3D printed, the slotted tube frame parts were laser cut, and the assembly was epoxy bonded. An Arduino GPS module logged position through the flight. Launch readiness checks covered mechanical fit, electronics operation, recovery setup, and known failure points.</p>
+    <p class="stat">
+      <span>Motor class [PLACEHOLDER] &middot; Apogee [PLACEHOLDER] &middot; Recovery [PLACEHOLDER]</span>
+      <span>3D printed nose cone, fins, and internal mount. Laser cut frame, epoxy bonded.</span>
+    </p>
+  </div>
+</section>
+
+<!-- ========================= ASCENT ========================= -->
+<section id="ascent" aria-label="Launch ascent">
+  <div class="sticky">
+    <div class="rocket">
+      <svg viewBox="0 0 60 200" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Rocket ascending">
+        <path d="M20 74v58h20V74"/>
+        <path d="M20 74c0-22 5-38 10-46 5 8 10 24 10 46"/>
+        <path d="M20 96h20" opacity=".45"/>
+        <path d="M20 114l-13 22v-10"/>
+        <path d="M7 136h13"/>
+        <path d="M40 114l13 22v-10"/>
+        <path d="M53 136h-13"/>
+        <path d="M24 132h12l-3 9h-6z"/>
+        <g class="plume">
+          <line x1="30" y1="146" x2="30" y2="192"/>
+          <line x1="25" y1="146" x2="22" y2="180"/>
+          <line x1="35" y1="146" x2="38" y2="180"/>
+          <line x1="28" y1="146" x2="27" y2="186" opacity=".6"/>
+          <line x1="32" y1="146" x2="33" y2="186" opacity=".6"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= 03 ISS ========================= -->
+<section class="stop" id="iss">
+  <div class="art">
+    <svg viewBox="0 0 460 300" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Line drawing of the International Space Station">
+      <!-- truss -->
+      <path d="M60 148h340"/>
+      <path d="M60 156h340"/>
+      <path d="M76 148v8M108 148v8M140 148v8M172 148v8M204 148v8M236 148v8M268 148v8M300 148v8M332 148v8M364 148v8" opacity=".45"/>
+      <path d="M60 148l16 8M92 148l16 8M124 148l16 8M156 148l16 8M188 148l16 8M220 148l16 8M252 148l16 8M284 148l16 8M316 148l16 8M348 148l16 8M380 148l16 8" opacity=".3"/>
+      <!-- solar arrays: outboard pairs -->
+      <path d="M28 92h64v42H28zM28 170h64v42H28z"/>
+      <path d="M100 92h64v42h-64zM100 170h64v42h-64z"/>
+      <path d="M296 92h64v42h-64zM296 170h64v42h-64z"/>
+      <path d="M368 92h64v42h-64zM368 170h64v42h-64z"/>
+      <g opacity=".3">
+        <path d="M44 92v42M60 92v42M76 92v42M44 170v42M60 170v42M76 170v42"/>
+        <path d="M116 92v42M132 92v42M148 92v42M116 170v42M132 170v42M148 170v42"/>
+        <path d="M312 92v42M328 92v42M344 92v42M312 170v42M328 170v42M344 170v42"/>
+        <path d="M384 92v42M400 92v42M416 92v42M384 170v42M400 170v42M416 170v42"/>
+      </g>
+      <path d="M60 134v14M60 170v-14M132 134v14M132 170v-14M328 134v14M328 170v-14M400 134v14M400 170v-14" opacity=".55"/>
+      <!-- radiators -->
+      <path d="M196 60h48v34h-48zM196 210h48v34h-48z" opacity=".8"/>
+      <path d="M220 94v54M220 210v-54" opacity=".5"/>
+      <!-- pressurised modules -->
+      <path d="M186 118h68v18h-68z"/>
+      <rect x="200" y="100" width="40" height="18" rx="9"/>
+      <rect x="252" y="112" width="34" height="30" rx="8"/>
+      <path d="M254 156v22h20v-22" opacity=".85"/>
+      <circle cx="264" cy="184" r="6" opacity=".7"/>
+    </svg>
+  </div>
+  <div class="copy">
+    <p class="eyebrow">Low Earth orbit &middot; C++17</p>
+    <h2>Flight software simulator</h2>
+    <p>A C++ simulator for the software side of a small spacecraft. It holds subsystem state, a periodic task scheduler, timestamped command processing, fault detection with protective mode entry, and CSV telemetry logging.</p>
+    <p>One loop iteration is one second of spacecraft time across a thirty second scenario with eclipse entry at t = 15 s. Malformed command lines are reported and skipped rather than aborting the run, so one bad uplink costs one command instead of the whole pass.</p>
+    <p class="stat">
+      <span>6 per-subsystem CTest suites, CI on every push</span>
+      <span>Power, thermal, comms, and fault management subsystems</span>
+    </p>
+    <a class="link" href="https://github.com/sssuriset/spacecraft-flight-software-sim">spacecraft-flight-software-sim</a>
+  </div>
+</section>
+
+<!-- ========================= 04 SATELLITE (two faces) ========================= -->
+<section id="sat" aria-label="Attitude control and flight software">
+  <span class="sat-anchor" id="sat-a" style="top:12%"></span>
+  <span class="sat-anchor" id="sat-b" style="top:62%"></span>
+  <div class="rig">
+    <div class="flipper">
+      <div class="inner">
+        <!-- FACE A: attitude / body axes -->
+        <div class="face a">
+          <svg viewBox="0 0 400 300" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Satellite bus with body axes and reaction wheels">
+            <path d="M164 118h72v72h-72z"/>
+            <path d="M164 118l16-14h72l-16 14M236 118l16-14v72l-16 14"/>
+            <path d="M164 190h72" opacity=".5"/>
+            <!-- panels -->
+            <path d="M40 132h124v44H40z"/>
+            <path d="M236 132h124v44H236z"/>
+            <g opacity=".3">
+              <path d="M72 132v44M104 132v44M136 132v44M268 132v44M300 132v44M332 132v44"/>
+              <path d="M40 154h124M236 154h124"/>
+            </g>
+            <!-- body axes -->
+            <g opacity=".85">
+              <path d="M200 154V70" stroke-dasharray="0"/>
+              <path d="M196 78l4-8 4 8"/>
+              <path d="M200 154h84"/>
+              <path d="M276 150l8 4-8 4"/>
+              <path d="M200 154l-46 46"/>
+              <path d="M160 194l-6 6 6 6" opacity=".8"/>
+            </g>
+            <!-- reaction wheels -->
+            <circle cx="182" cy="140" r="9" opacity=".7"/>
+            <circle cx="182" cy="140" r="3" opacity=".7"/>
+            <circle cx="218" cy="140" r="9" opacity=".7"/>
+            <circle cx="218" cy="140" r="3" opacity=".7"/>
+            <circle cx="200" cy="174" r="9" opacity=".7"/>
+            <circle cx="200" cy="174" r="3" opacity=".7"/>
+            <!-- error arc -->
+            <path d="M200 96a58 58 0 0 1 41 17" stroke-dasharray="3 5" opacity=".6"/>
+          </svg>
+        </div>
+        <!-- FACE B: command and telemetry -->
+        <div class="face b">
+          <svg viewBox="0 0 400 300" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Satellite bus with antenna and telemetry downlink">
+            <path d="M164 118h72v72h-72z"/>
+            <path d="M164 118l16-14h72l-16 14M236 118l16-14v72l-16 14"/>
+            <path d="M164 154h72" opacity=".4"/>
+            <path d="M40 132h124v44H40z"/>
+            <path d="M236 132h124v44H236z"/>
+            <g opacity=".3">
+              <path d="M72 132v44M104 132v44M136 132v44M268 132v44M300 132v44M332 132v44"/>
+              <path d="M40 154h124M236 154h124"/>
+            </g>
+            <!-- high gain dish -->
+            <path d="M200 118V94"/>
+            <path d="M172 88a30 30 0 0 1 56 0"/>
+            <path d="M172 88h56" opacity=".45"/>
+            <path d="M200 88V70"/>
+            <circle cx="200" cy="67" r="3.5"/>
+            <!-- downlink -->
+            <g opacity=".55">
+              <path d="M200 58a44 44 0 0 0-30 12" stroke-dasharray="3 5"/>
+              <path d="M200 48a58 58 0 0 0-40 16" stroke-dasharray="3 5"/>
+              <path d="M200 38a72 72 0 0 0-50 20" stroke-dasharray="3 5"/>
+            </g>
+            <!-- packet ticks -->
+            <g opacity=".7">
+              <path d="M176 208h6v10h-6zM188 208h4v14h-4zM198 208h8v8h-8zM212 208h4v14h-4zM222 208h6v10h-6z"/>
+              <path d="M170 226h64" opacity=".5"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div class="faces">
+      <div class="copy a">
+        <p class="eyebrow">Low Earth orbit &middot; C and Python</p>
+        <h2>Attitude control and state estimation</h2>
+        <p>An attitude control testbed split the way flight software is actually structured. C flight software holds the PD controller and an RTOS-style scheduler running sensor, control, telemetry, and health tasks at 100, 50, 10, and 1 Hz. A Python plant carries the dynamics with sensor noise, gyro random-walk bias, disturbance torque, and reaction wheel saturation. A Python ground segment ingests the logged telemetry into SQLite and flags threshold anomalies.</p>
+        <p>A per-axis Kalman filter with a gyro bias state cuts steady-state pointing error RMS about 8&times; and torque activity about 3&times; against raw sensors. Process noise is derived from the modeled disturbance torque with no free tuning, so the filter is not fit to the answer it is meant to find. A 20 seed Monte Carlo study holds per-axis mean ANEES at 3.19 to 3.37 inside chi-square 95% bounds and mean ANIS at 1.98 to 2.02 against a target of 2.</p>
+        <p>The same testbed extends to proximity operations. Clohessy-Wiltshire relative dynamics in the Hill frame, with the closed-form state transition matrix checked against numerical propagation over two orbits, drive a 500 m -> 50 m V-bar approach. Two-impulse transfer costs 0.68 m/s and closed-loop glideslope guidance costs 2.07 m/s, which prices the robustness. An EKF estimating relative state from 1 Hz range, azimuth, and elevation reaches 10.5 cm steady-state RMSE against 0.5 m range noise. A 30 m keep-out sphere, closing-speed corridor, and latched abort are evaluated onboard on the estimated state, and a mis-commanded approach aborts at t = 1474 s with 39.9 m minimum true range.</p>
+        <p class="stat">
+          <span>0.40 rad peak transient to 3.1 &times; 10<sup>&minus;4</sup> rad final pointing error</span>
+          <span>K<sub>p</sub> = 0.8, K<sub>d</sub> = 2.0, torque limit 0.2 N&middot;m</span>
+          <span>10.5 cm relative-nav RMSE, abort at 39.9 m true range</span>
+        </p>
+        <a class="link" href="https://github.com/sssuriset/spacecraft-attitude-hwil-simulation">spacecraft-attitude-hwil-simulation</a>
+      </div>
+      <div class="copy b">
+        <p class="eyebrow">Low Earth orbit &middot; Red Canyon Software</p>
+        <h2>core Flight System</h2>
+        <p>Flight software development on NASA's core Flight System. Extends cFS applications with new command codes, handler functions, and event messages in C, then verifies behavior end to end by sending commands through the cFS ground system and confirming event and telemetry output. Integrates applications into mission builds through CMake target lists and cFE startup scripts. Extends a UT-Assert stub generator that replaces cFE and OSAL dependencies so application logic can be unit tested in isolation.</p>
+        <p class="stat">
+          <span>Intern, June 2026 to present</span>
+          <span>C on Linux. cFE Executive, Software Bus, Event, Time, and Table Services</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= 05 MOON ========================= -->
+<section class="stop flip" id="moon">
+  <div class="art">
+    <svg viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Line drawing of the Moon with craters and an inspection tile grid">
+      <circle cx="200" cy="200" r="150"/>
+      <!-- terminator -->
+      <path d="M200 50a150 150 0 0 0 0 300" stroke-dasharray="4 6" opacity=".45"/>
+      <!-- craters -->
+      <circle cx="146" cy="140" r="30" opacity=".75"/>
+      <circle cx="146" cy="140" r="20" opacity=".35"/>
+      <circle cx="236" cy="112" r="17" opacity=".7"/>
+      <circle cx="272" cy="196" r="26" opacity=".7"/>
+      <circle cx="272" cy="196" r="15" opacity=".3"/>
+      <circle cx="168" cy="248" r="21" opacity=".7"/>
+      <circle cx="112" cy="216" r="12" opacity=".6"/>
+      <circle cx="216" cy="292" r="14" opacity=".6"/>
+      <circle cx="298" cy="126" r="9" opacity=".55"/>
+      <!-- mare edges -->
+      <path d="M92 262a92 92 0 0 0 120 74" opacity=".3"/>
+      <path d="M256 62a120 120 0 0 1 78 92" opacity=".3"/>
+      <!-- inspection tiles -->
+      <g opacity=".85">
+        <path d="M180 150h64v64h-64z"/>
+        <path d="M180 172h64M180 194h64M202 150v64M224 150v64" opacity=".35"/>
+        <path d="M180 150l-6-6M244 150l6-6M180 214l-6 6M244 214l6 6" opacity=".6"/>
+      </g>
+      <!-- edge detection ticks -->
+      <g opacity=".5">
+        <path d="M126 120l-8-6M166 120l8-6M146 168v10"/>
+      </g>
+    </svg>
+  </div>
+  <div class="copy">
+    <p class="eyebrow">3.84 &times; 10<sup>8</sup> m &middot; Python</p>
+    <h2>Lunar image quality metrics</h2>
+    <p>A batch quality inspection workflow for lunar surface imagery. Each image produces a percentile-normalized version, a contrast stretch, a Canny edge map, a residual noise image, and a set of tiles.</p>
+    <p>Seventeen image-quality metrics are written to CSV so images in a batch can be compared numerically instead of by eye. Normalization rescales between the 1st and 99th percentile rather than absolute min and max, since a few extreme pixels can flatten the useful brightness range of a whole image.</p>
+    <p class="stat">
+      <span>Sharpness from the variance of the Laplacian</span>
+      <span>Batch ranking, not calibrated surface measurement</span>
+    </p>
+    <a class="link" href="https://github.com/sssuriset/lunar-image-processing">lunar-image-processing</a>
+  </div>
+</section>
+
+<!-- ========================= 06 COMET ========================= -->
+<section class="stop" id="comet">
+  <div class="art">
+    <svg viewBox="0 0 400 300" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Cartoon comet with a tapering tail">
+      <circle cx="292" cy="150" r="26"/>
+      <path d="M274 132C232 122 154 100 92 74c58 34 118 56 158 66"/>
+      <path d="M274 168C232 178 154 200 92 226c58-34 118-56 158-66"/>
+      <path d="M266 140c-40-6-98-20-146-38" opacity=".55"/>
+      <path d="M266 160c-40 6-98 20-146 38" opacity=".55"/>
+      <path d="M268 150H150" opacity=".35"/>
+    </svg>
+  </div>
+  <div class="copy">
+    <p class="eyebrow">Perihelion, inside 1 AU &middot; Python</p>
+    <h2>Integrator error against timestep</h2>
+    <p>Three numerical integration methods tested on a two-body Earth orbit. Explicit Euler, semi-implicit Euler, and velocity Verlet. Acceleration comes from a = &minus;&mu;r / |r|&sup3;, with Earth as a fixed central mass and the satellite as a point mass.</p>
+    <p>Each method runs across timesteps from 1 s to 300 s over seven days, measuring energy and angular momentum conservation, period estimate, and final position error. At dt = 300 s explicit Euler gains roughly 100% in specific energy and leaves the orbit entirely, semi-implicit Euler oscillates inside a bounded band with no secular drift, and velocity Verlet stays flat. Drag, thrust, third-body gravity, and oblateness are omitted deliberately, so what the study measures is integration error rather than perturbation.</p>
+    <p class="stat">
+      <span>Timesteps 1 s to 300 s, seven-day span</span>
+      <span>NumPy and Matplotlib</span>
+    </p>
+    <a class="link" href="https://github.com/sssuriset/orbital-mechanics-simulation">orbital-mechanics-simulation</a>
+  </div>
+</section>
+
+<!-- ========================= 07 SUN ========================= -->
+<section class="stop flip" id="sun">
+  <div class="art">
+    <svg viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="The Sun with coronal field lines and a dashed source surface">
+      <!-- photosphere -->
+      <circle cx="200" cy="200" r="66"/>
+      <!-- source surfaces at 2.0, 2.5, 3.0 R -->
+      <circle cx="200" cy="200" r="106" stroke-dasharray="2 6" opacity=".4"/>
+      <circle cx="200" cy="200" r="132" stroke-dasharray="4 6" opacity=".7"/>
+      <circle cx="200" cy="200" r="158" stroke-dasharray="2 6" opacity=".4"/>
+      <!-- closed field loops -->
+      <g opacity=".75">
+        <path d="M156 152c14-34 74-34 88 0"/>
+        <path d="M146 168c20-48 88-48 108 0"/>
+        <path d="M160 250c14 32 66 32 80 0"/>
+      </g>
+      <!-- open field, polar -->
+      <g opacity=".8">
+        <path d="M182 138 150 44"/>
+        <path d="M200 134 196 38"/>
+        <path d="M218 138 250 44"/>
+        <path d="M182 262 150 356"/>
+        <path d="M200 266 196 362"/>
+        <path d="M218 262 250 356"/>
+      </g>
+      <!-- open field, equatorial (the mapped structure) -->
+      <g opacity=".6">
+        <path d="M266 186 372 168"/>
+        <path d="M266 214 372 232"/>
+        <path d="M134 186 28 168"/>
+        <path d="M134 214 28 232"/>
+      </g>
+      <!-- neutral line -->
+      <path d="M62 200h276" stroke-dasharray="6 5" opacity=".35"/>
+      <!-- ballistic map to 1 AU -->
+      <path d="M338 214c22 18 34 44 36 74" opacity=".55"/>
+      <circle cx="376" cy="296" r="4" opacity=".75"/>
+    </svg>
+  </div>
+  <div class="copy">
+    <p class="eyebrow">1.496 &times; 10<sup>11</sup> m &middot; Presented at AAS SPD 57</p>
+    <h2>PFSS source-surface height sensitivity</h2>
+    <p>How sensitive are coronal-to-1 AU magnetic mapping predictions to the choice of source-surface height? Potential-field source-surface models were built from HMI synoptic magnetograms at 2.0, 2.5, and 3.0 solar radii, ballistically mapped to 1 AU, and tested against OMNI hourly solar wind observations across five Carrington rotations.</p>
+    <p>The equatorial open-flux proxy correlates with near-Earth field strength at Spearman r near 0.30 over the pooled sample, and the correlation survives a phase-shift null test. Height sensitivity is modest but consistent. 2.5 solar radii is strongest in the pooled sample and in four of five leave-one-rotation-out subsets.</p>
+    <p class="stat">
+      <span>First author, poster at AAS SPD 57, Baltimore, August 2026</span>
+      <span>180 pooled points, null test p = 0.002 to 0.007</span>
+      <span>CRs 2281, 2283, 2284, 2286, 2290</span>
+    </p>
+    <a class="link" href="https://github.com/sssuriset/psp-solar-wind-variability">psp-solar-wind-variability</a>
+  </div>
+</section>
+
+<!-- ========================= 08 STARS ========================= -->
+<section class="stop" id="starstop">
+  <div class="art">
+    <svg viewBox="0 0 400 340" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Three stars above a phase-folded light curve with a transit dip">
+      <!-- primary star -->
+      <g>
+        <circle cx="140" cy="86" r="18"/>
+        <path d="M140 44v-18M140 146v18M98 86H80M182 86h18" opacity=".8"/>
+        <path d="M112 58l-11-11M168 58l11-11M112 114l-11 11M168 114l11 11" opacity=".5"/>
+      </g>
+      <!-- secondary -->
+      <g opacity=".8">
+        <circle cx="268" cy="58" r="11"/>
+        <path d="M268 33v-12M268 83v12M243 58h-12M293 58h12" opacity=".7"/>
+      </g>
+      <!-- tertiary -->
+      <g opacity=".65">
+        <circle cx="326" cy="132" r="7"/>
+        <path d="M326 114v-8M326 150v8M308 132h-8M344 132h8" opacity=".7"/>
+      </g>
+      <!-- transiting planet -->
+      <circle cx="152" cy="86" r="4.5" opacity=".9"/>
+      <path d="M104 86h72" stroke-dasharray="3 5" opacity=".4"/>
+      <!-- axes -->
+      <path d="M46 300h316" opacity=".6"/>
+      <path d="M46 200v100" opacity=".6"/>
+      <path d="M42 220h8M42 250h8M42 280h8" opacity=".4"/>
+      <path d="M120 300v6M200 300v6M280 300v6" opacity=".4"/>
+      <!-- folded light curve with box transit -->
+      <path d="M46 232q22 4 40-1 20-5 38 2 18 6 36-2"/>
+      <path d="M160 231h14l0 30h44l0-30h14"/>
+      <path d="M232 231q20 6 38-1 20-7 38 2 18 7 36-1"/>
+      <!-- scatter -->
+      <g opacity=".4">
+        <circle cx="72" cy="229" r="1.4"/><circle cx="98" cy="234" r="1.4"/>
+        <circle cx="126" cy="228" r="1.4"/><circle cx="148" cy="234" r="1.4"/>
+        <circle cx="182" cy="259" r="1.4"/><circle cx="204" cy="263" r="1.4"/>
+        <circle cx="252" cy="230" r="1.4"/><circle cx="288" cy="235" r="1.4"/>
+        <circle cx="322" cy="228" r="1.4"/>
+      </g>
+    </svg>
+  </div>
+  <div class="copy">
+    <p class="eyebrow">~4 &times; 10<sup>16</sup> m &middot; Python</p>
+    <h2>Period search against ground truth</h2>
+    <p>Period searches on stellar light curves, run as two experiments against one shared search module. The first measures a variability period in a real Kepler light curve. The second validates the search on a synthetic curve with a known injected transit, so recovery accuracy can be checked against ground truth.</p>
+    <p>The pair shows why method choice matters. Lomb-Scargle finds the Kepler star's smooth 19.4005 day variability cleanly. On a box-shaped transit signal it locks onto a 1.24 day alias, while Box Least Squares recovers the injected 3.72 day period to within 1.4 minutes.</p>
+    <p class="stat">
+      <span>KIC 757450, Q3 long cadence, 4134 of 4370 points kept</span>
+      <span>Sine-fit period 19.4013 d, residual RMS 0.0033</span>
+    </p>
+    <a class="link" href="https://github.com/sssuriset/stellar-timeseries-analysis">stellar-timeseries-analysis</a>
+  </div>
+</section>
+
+<!-- ========================= 09 BLACK HOLE ========================= -->
+<section class="stop flip" id="bh">
+  <div class="art">
+    <svg viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Black hole with photon ring, accretion disk, and lensed light paths">
+      <!-- lensed background arcs -->
+      <g opacity=".45">
+        <path d="M64 128q136-58 272 0"/>
+        <path d="M64 272q136 58 272 0"/>
+        <path d="M78 108q122-72 244 0" opacity=".6"/>
+        <path d="M78 292q122 72 244 0" opacity=".6"/>
+      </g>
+      <!-- far side of disk lensed over the top -->
+      <path d="M96 200a104 104 0 0 1 208 0"/>
+      <path d="M112 200a88 88 0 0 1 176 0" opacity=".55"/>
+      <!-- shadow -->
+      <circle cx="200" cy="200" r="58" fill="var(--sky)" stroke="none"/>
+      <!-- photon ring -->
+      <circle cx="200" cy="200" r="58"/>
+      <circle cx="200" cy="200" r="63" opacity=".4"/>
+      <!-- ISCO marker -->
+      <ellipse cx="200" cy="200" rx="96" ry="22" stroke-dasharray="3 6" opacity=".4"/>
+      <!-- near side of disk -->
+      <path d="M96 200a104 104 0 0 0 208 0"/>
+      <path d="M112 200a88 88 0 0 0 176 0" opacity=".55"/>
+      <ellipse cx="200" cy="200" rx="152" ry="34" opacity=".7"/>
+      <!-- beaming asymmetry hint -->
+      <g opacity=".55">
+        <path d="M52 200q0 8 4 16M64 214q4 8 10 14"/>
+      </g>
+      <!-- ray -->
+      <path d="M372 96q-96 44-108 104" stroke-dasharray="3 5" opacity=".5"/>
+      <path d="M264 200q10 62 106 106" stroke-dasharray="3 5" opacity=".5"/>
+    </svg>
+  </div>
+  <div class="copy">
+    <p class="eyebrow">~10<sup>19</sup> m &middot; GLSL ES 3.00</p>
+    <h2>Schwarzschild ray tracer</h2>
+    <p>A real-time general-relativistic ray tracer in a single HTML file. Every pixel integrates a null geodesic backward from the camera through the Schwarzschild metric in a fragment shader. Geodesics are planar, so integration runs in each ray's own orbital plane using the Binet form, d&sup2;u/d&phi;&sup2; = 3u&sup2; &minus; u, which needs two state variables per ray instead of eight.</p>
+    <p>The disk is a thin Keplerian annulus from the ISCO out to 20M, shaded with the exact circular-orbit redshift and g&#8308; bolometric beaming. A toggle sets g = 1 to show the same disk without relativistic shading, which separates the physics from the rendering.</p>
+    <p class="stat">
+      <span>Shadow radius 41.5 px measured, 41.0 px predicted</span>
+      <span>Deflection rel. err 8.8 &times; 10<sup>&minus;5</sup> at b = 100M</span>
+    </p>
+    <a class="link" href="https://github.com/sssuriset/black-hole-render">black-hole-render</a>
+  </div>
+</section>
+
+<!-- ========================= 10 GALAXIES ========================= -->
+<section class="stop" id="galaxies">
+  <div class="art">
+    <svg viewBox="0 0 400 340" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Spiral galaxy with companions and a redshift-distance fit line">
+      <!-- spiral -->
+      <g>
+        <ellipse cx="132" cy="112" rx="14" ry="10" transform="rotate(-24 132 112)"/>
+        <path d="M146 106q34 2 44 26 10 26-16 42-28 18-58 2-32-18-22-56 10-40 60-42 52-2 74 34"/>
+        <path d="M118 118q-34-2-44-26-10-26 16-42 28-18 58-2 32 18 22 56" opacity=".7"/>
+        <ellipse cx="132" cy="112" rx="76" ry="60" transform="rotate(-24 132 112)" stroke-dasharray="2 7" opacity=".3"/>
+      </g>
+      <!-- companions -->
+      <ellipse cx="272" cy="66" rx="20" ry="13" transform="rotate(18 272 66)" opacity=".8"/>
+      <ellipse cx="272" cy="66" rx="9" ry="6" transform="rotate(18 272 66)" opacity=".45"/>
+      <ellipse cx="330" cy="132" rx="13" ry="10" opacity=".7"/>
+      <ellipse cx="238" cy="150" rx="9" ry="5" transform="rotate(-30 238 150)" opacity=".6"/>
+      <!-- Hubble diagram -->
+      <path d="M46 300h316" opacity=".6"/>
+      <path d="M46 200v100" opacity=".6"/>
+      <path d="M46 296 348 210"/>
+      <g opacity=".55">
+        <circle cx="86" cy="286" r="2.2"/><circle cx="124" cy="278" r="2.2"/>
+        <circle cx="162" cy="270" r="2.2"/><circle cx="196" cy="256" r="2.2"/>
+        <circle cx="232" cy="248" r="2.2"/><circle cx="272" cy="234" r="2.2"/>
+        <circle cx="308" cy="224" r="2.2"/>
+      </g>
+      <!-- the outlier -->
+      <circle cx="214" cy="216" r="4.5"/>
+      <path d="M214 216v34" stroke-dasharray="2 4" opacity=".6"/>
+      <path d="M206 208l16 16M222 208l-16 16" opacity=".7"/>
+      <!-- axis ticks -->
+      <path d="M42 220h8M42 250h8M42 280h8" opacity=".4"/>
+      <path d="M140 300v6M240 300v6M340 300v6" opacity=".4"/>
+    </svg>
+  </div>
+  <div class="copy">
+    <p class="eyebrow">~10<sup>22</sup> m &middot; Python</p>
+    <h2>Hubble constant on a planted sample</h2>
+    <p>A Hubble constant estimation study on a controlled synthetic galaxy sample. The generator plants the truth at H&#8320; = 67.5 km/s/Mpc with distance and redshift uncertainty, peculiar velocity scatter, and one injected outlier, so every fitting choice is judged against a known answer.</p>
+    <p>A weighted fit through the origin on the full sample returns 68.39. Removing the planted outlier at 95 Mpc with a 2&sigma; residual cut moves it to 67.60. One bad galaxy shifts the answer by 0.8 km/s/Mpc, which is the point of the exercise.</p>
+    <p class="stat">
+      <span>Bootstrap 95% interval 66.76 to 71.19</span>
+      <span>Residual RMS 359 to 208 km/s after the cut</span>
+    </p>
+    <a class="link" href="https://github.com/sssuriset/galaxy-redshift-expansion">galaxy-redshift-expansion</a>
+  </div>
+</section>
+
+<!-- ========================= 11 CMB ========================= -->
+<section class="stop flip" id="cmb">
+  <div class="art">
+    <svg viewBox="0 0 400 340" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Last scattering shell above the CMB TT power spectrum with three labelled acoustic peaks">
+      <!-- last scattering shell -->
+      <path d="M40 128a160 160 0 0 1 320 0" opacity=".7"/>
+      <path d="M62 128a138 138 0 0 1 276 0" stroke-dasharray="3 6" opacity=".35"/>
+      <g opacity=".4">
+        <path d="M96 96q14-12 28 0t28 0 28 0 28 0 28 0 28 0"/>
+        <path d="M118 72q12-10 24 0t24 0 24 0 24 0 24 0"/>
+      </g>
+      <!-- axes -->
+      <path d="M46 300h316" opacity=".6"/>
+      <path d="M46 168v132" opacity=".6"/>
+      <!-- TT spectrum -->
+      <path d="M46 286q18-10 34-38 12-22 24-56 10-28 20 0 8 24 16 60 8 34 18 46"/>
+      <path d="M158 298q12-14 20-42 8-26 16-2 8 24 18 44"/>
+      <path d="M212 298q14-12 22-34 8-22 16-4 8 20 18 36"/>
+      <path d="M268 296q22-6 40 4 20 10 34 0" opacity=".7"/>
+      <!-- peak markers -->
+      <g opacity=".85">
+        <path d="M124 192v-24"/><circle cx="124" cy="192" r="3.4"/>
+        <path d="M194 254v-24"/><circle cx="194" cy="254" r="3.4"/>
+        <path d="M250 260v-24"/><circle cx="250" cy="260" r="3.4"/>
+      </g>
+      <!-- peak spacing -->
+      <g opacity=".5">
+        <path d="M124 176h70"/>
+        <path d="M130 172l-6 4 6 4M188 172l6 4-6 4"/>
+        <path d="M194 176h56"/>
+        <path d="M244 172l6 4-6 4"/>
+      </g>
+      <path d="M42 200h8M42 240h8M42 280h8" opacity=".4"/>
+      <path d="M124 300v6M194 300v6M250 300v6" opacity=".4"/>
+    </svg>
+  </div>
+  <div class="copy">
+    <p class="eyebrow">~4 &times; 10<sup>26</sup> m &middot; Python</p>
+    <h2>CMB acoustic peak extraction</h2>
+    <p>Feature extraction on the Planck cosmic microwave background TT power spectrum. The script smooths the spectrum with a Savitzky-Golay filter, locates the first three acoustic peaks by prominence and spacing, converts each peak location to an angular scale through &theta; = 180 / &#8467;, and writes the measurements to CSV with figures.</p>
+    <p>Peak detection runs on the smoothed spectrum with a prominence threshold of 0.20 standard deviations and a minimum separation of 120 in &#8467;. The scope is peak measurement and derived scales, not cosmological parameter fitting.</p>
+    <p class="stat">
+      <span>Peaks at &#8467; = 224, 514, 822</span>
+      <span>First peak angular scale 0.80&deg;</span>
+      <span>Mean peak spacing &Delta;&#8467; = 299</span>
+    </p>
+    <a class="link" href="https://github.com/sssuriset/cmb-power-spectrum">cmb-power-spectrum</a>
+  </div>
+</section>
+
+<!-- ========================= CONTACT ========================= -->
+<section class="stop" id="contact">
+  <div class="inner">
+    <h2>Sumana Surisetti</h2>
+    <p class="sub">Astronomy and Astrophysics at Florida Institute of Technology with a computational mathematics minor, graduating 2028. Spacecraft flight software, state estimation, and rendezvous and proximity operations.</p>
+    <ul class="contact-list">
+      <li><a href="mailto:sssuriset@gmail.com">Personal email</a></li>
+      <li><a href="mailto:ssurisetti2023@my.fit.edu">School email</a></li>
+      <li><a href="https://github.com/sssuriset">GitHub</a></li>
+      <li><a href="https://www.linkedin.com/in/ssurisetti/">LinkedIn</a></li>
+      <li><a href="resume.pdf">Resume</a></li>
+    </ul>
+    <p class="colophon">Melbourne, Florida &middot; Boston, Massachusetts</p>
+  </div>
+</section>
+
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  /* ----------------------------------------------------------
+     Stops. d is distance from Earth in metres; null = ground.
+     Scroll spacing between stops is even (equal section heights);
+     the readout interpolates log10(d) within each segment, so
+     every value shown is real.
+     ---------------------------------------------------------- */
+  var STOPS = [
+    {id:"top",      d:null,     sky:"#E4EAEE", ink:"#161D24", star:0.00},
+    {id:"ortega",   d:null,     sky:"#D6DFE6", ink:"#1B232B", star:0.00},
+    {id:"pad",      d:null,     sky:"#C2D2DE", ink:"#1E2730", star:0.00},
+    {id:"ascent",   d:1.0e2,    sky:"#7C9AB6", ink:"#243543", star:0.10},
+    {id:"iss",      d:4.08e5,   sky:"#1B2B42", ink:"#8CA3B6", star:0.72},
+    {id:"sat",      d:7.00e5,   sky:"#16233A", ink:"#9BB0C1", star:0.82},
+    {id:"moon",     d:3.844e8,  sky:"#101A2C", ink:"#AAC0CF", star:0.90},
+    {id:"comet",    d:8.83e10,  sky:"#0C1424", ink:"#B4C7D4", star:0.94},
+    {id:"sun",      d:1.496e11, sky:"#0A101C", ink:"#BDCEDA", star:0.96},
+    {id:"starstop", d:3.97e16,  sky:"#070C16", ink:"#C4D3DE", star:1.00},
+    {id:"bh",       d:1.42e19,  sky:"#050912", ink:"#C9D7E1", star:0.92},
+    {id:"galaxies", d:2.37e22,  sky:"#04070F", ink:"#CCD9E3", star:0.86},
+    {id:"cmb",      d:4.35e26,  sky:"#03050B", ink:"#CFDBE4", star:0.70},
+    {id:"contact",  d:4.35e26,  sky:"#03050B", ink:"#CFDBE4", star:0.55}
+  ];
+
+  var root   = document.documentElement;
+  var altEl  = document.getElementById("alt");
+  var jumpEl = document.getElementById("jump");
+  var layers = Array.prototype.slice.call(document.querySelectorAll(".starfield"));
+  var links  = Array.prototype.slice.call(jumpEl.querySelectorAll("a"));
+
+  var satFace = 0;
+
+  var nodes = STOPS.map(function(s){
+    var el = document.getElementById(s.id);
+    return {cfg:s, el:el, top:0, h:0};
+  }).filter(function(n){ return n.el; });
+
+  function measure(){
+    nodes.forEach(function(n){
+      var r = n.el.getBoundingClientRect();
+      n.top = r.top + window.pageYOffset;
+      n.h   = n.el.offsetHeight;
+      n.mid = n.top + n.h * 0.5;
+    });
+  }
+
+  /* ---------- colour helpers ---------- */
+  function hex2rgb(h){
+    return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+  }
+  function mix(a,b,t){
+    var A=hex2rgb(a), B=hex2rgb(b);
+    return "rgb(" + Math.round(A[0]+(B[0]-A[0])*t) + ","
+                  + Math.round(A[1]+(B[1]-A[1])*t) + ","
+                  + Math.round(A[2]+(B[2]-A[2])*t) + ")";
+  }
+  function clamp(v,lo,hi){ return v<lo?lo:(v>hi?hi:v); }
+
+  /* ---------- altitude formatting ---------- */
+  var AU = 1.495978707e11;
+  var LY = 9.4607e15;
+
+  function sig(x,n){
+    if(!isFinite(x)) return "0";
+    var s = x.toPrecision(n);
+    if(s.indexOf("e") > -1) return Number(s).toString();
+    return s.replace(/\.?0+$/,"");
+  }
+  function grp(x){
+    return Math.round(x).toString().replace(/\B(?=(\d{3})+(?!\d))/g,",");
+  }
+  function formatAlt(d){
+    if(d === null) return "Ground";
+    if(d < 1e3)  return Math.round(d) + " m";
+    if(d < 1e9)  return grp(d/1e3) + " km";
+    if(d < 1e15) return sig(d/AU,3) + " AU";
+    var ly = d/LY;
+    if(ly < 1e3) return sig(ly,3) + " ly";
+    if(ly < 1e6) return grp(ly) + " ly";
+    if(ly < 1e9) return sig(ly/1e6,3) + " Mly";
+    return sig(ly/1e9,3) + " Gly";
+  }
+
+  /* ---------- main frame ---------- */
+  var ticking = false;
+  var lastSky = "", lastInk = "";
+
+  function frame(){
+    ticking = false;
+
+    var y   = window.pageYOffset;
+    var vh  = window.innerHeight;
+    var cam = y + vh * 0.5;
+
+    /* which segment is the camera in, measured centre to centre so a
+       landmark sitting in the middle of the viewport reads its own value */
+    var i = 0;
+    for(var k = 0; k < nodes.length; k++){
+      if(cam >= nodes[k].mid) i = k;
+    }
+    var cur  = nodes[i];
+    var next = nodes[Math.min(i+1, nodes.length-1)];
+    var span = Math.max(1, (next === cur ? cur.h : next.mid - cur.mid));
+    var t    = clamp((cam - cur.mid) / span, 0, 1);
+
+    /* sky + stroke */
+    var sky = mix(cur.cfg.sky, next.cfg.sky, t);
+    var ink = mix(cur.cfg.ink, next.cfg.ink, t);
+    if(sky !== lastSky){ root.style.setProperty("--sky", sky); lastSky = sky; }
+    if(ink !== lastInk){ root.style.setProperty("--stroke", ink); lastInk = ink; }
+    root.style.setProperty("--star-op", (cur.cfg.star + (next.cfg.star - cur.cfg.star) * t).toFixed(3));
+
+    /* altitude: log-interpolate inside the segment */
+    var a = cur.cfg.d, b = next.cfg.d;
+    var shown;
+    if(a === null && b === null)      shown = null;
+    else if(a === null)               shown = (t < 0.55) ? null : b * Math.pow(10, (t-1) * 1.2);
+    else if(b === null)               shown = a;
+    else if(a === b)                  shown = a;
+    else                              shown = Math.pow(10, Math.log(a)/Math.LN10 + t * (Math.log(b)/Math.LN10 - Math.log(a)/Math.LN10));
+    altEl.textContent = formatAlt(shown);
+
+    /* per-section progress for parallax + sticky rigs */
+    nodes.forEach(function(n){
+      var p = clamp((cam - n.top) / Math.max(1, n.h), 0, 1);
+      n.el.style.setProperty("--p", p.toFixed(4));
+      if(n.cfg.id === "ascent"){
+        n.el.style.setProperty("--a", p.toFixed(4));
+      }
+      if(n.cfg.id === "sat"){
+        var f = clamp((p - 0.40) / 0.16, 0, 1);
+        n.el.style.setProperty("--f", f.toFixed(4));
+        satFace = f;
+      }
+    });
+
+    /* starfield parallax, wrapped on the tile so it never runs out */
+    layers.forEach(function(l){
+      var depth = parseFloat(l.getAttribute("data-depth")) || 0.1;
+      var tile  = parseFloat(l.getAttribute("data-tile"))  || 300;
+      var off   = (y * depth) % tile;
+      l.style.backgroundPosition = "0px " + off.toFixed(1) + "px";
+    });
+
+    /* jump nav: highlight the section the viewport centre is inside,
+       not the segment anchor used for the altitude interpolation */
+    if(y > vh * 0.6) jumpEl.classList.add("on"); else jumpEl.classList.remove("on");
+    var inside = nodes[0];
+    for(var j = 0; j < nodes.length; j++){
+      if(cam >= nodes[j].top && cam < nodes[j].top + nodes[j].h){ inside = nodes[j]; break; }
+      if(cam >= nodes[j].top) inside = nodes[j];
+    }
+    var activeId = inside.cfg.id === "ascent" ? "pad" : inside.cfg.id;
+    if(activeId === "sat") activeId = satFace < 0.5 ? "sat-a" : "sat-b";
+    links.forEach(function(l){
+      var on = l.getAttribute("href") === "#" + activeId;
+      if(on) l.setAttribute("aria-current","true"); else l.removeAttribute("aria-current");
+    });
+  }
+
+  function onScroll(){
+    if(!ticking){ ticking = true; window.requestAnimationFrame(frame); }
+  }
+
+  function start(){
+    measure();
+    frame();
+    window.addEventListener("scroll", onScroll, {passive:true});
+    window.addEventListener("resize", function(){ measure(); frame(); });
+    window.addEventListener("load", function(){ measure(); frame(); });
+  }
+
+  if(reduce.matches){
+    root.style.setProperty("--sky", "#0B1220");
+    root.style.setProperty("--stroke", "#C2D2DE");
+  } else {
+    start();
+  }
+
+  if(reduce.addEventListener){
+    reduce.addEventListener("change", function(){ location.reload(); });
+  }
+})();
+</script>
+</body>
+</html>
