@@ -520,7 +520,7 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius
     </svg>
   </div>
   <div class="copy">
-    <p class="eyebrow">Personal project &middot; C++17, CMake, CTest</p>
+    <p class="eyebrow">C++17, CMake, CTest</p>
     <h2>Flight software simulator</h2>
     <p>A C++ simulator for the software side of a small spacecraft. It supports subsystem state, a periodic task scheduler, timestamped command processing, fault detection with protective-mode entry, and CSV telemetry logging.</p>
     <p>One loop iteration is one second of spacecraft time across a thirty-second scenario with eclipse entry at t = 15 s. Malformed command lines are reported and skipped rather than aborting the run, so one bad uplink costs one command instead of the whole pass.</p>
@@ -607,7 +607,7 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius
     </div>
     <div class="faces">
       <div class="copy a">
-        <p class="eyebrow">Personal project &middot; C, Python, SQLite, Makefile</p>
+        <p class="eyebrow">C, Python, SQLite, Makefile</p>
         <h2>Attitude control and state estimation</h2>
         <p>An attitude control testbed split the way flight software is actually structured. C flight software includes the PD controller and an RTOS-style scheduler that runs sensor, control, telemetry, and health tasks at 100, 50, 10, and 1 Hz. A Python plant accounts for sensor noise, gyro random-walk bias, disturbance torque, and reaction wheel saturation. A Python ground segment ingests the logged telemetry into SQLite and flags threshold anomalies.</p>
         <p>A per-axis Kalman filter with a gyro bias state cuts steady-state pointing error RMS by about 8x and torque activity by about 3x against raw sensors. Process noise is derived from the modeled disturbance torque with no free tuning, so the filter is not fit to the answer it is meant to find. A 20-seed Monte Carlo study yields per-axis mean ANEES of 3.19 to 3.37 within 95% chi-square bounds and mean ANIS of 1.98 to 2.02 against a target of 2.</p>
@@ -665,7 +665,7 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius
     </svg>
   </div>
   <div class="copy">
-    <p class="eyebrow">Personal project &middot; Python, NumPy, scikit-image</p>
+    <p class="eyebrow">Python, NumPy, scikit-image</p>
     <h2>Lunar image quality metrics</h2>
     <p>A batch quality inspection workflow for lunar surface imagery. Each image produces a percentile-normalized version, a contrast stretch, a Canny edge map, a residual noise image, and a set of tiles.</p>
     <p>Seventeen image-quality metrics are written to a CSV file, allowing images in a batch to be compared numerically rather than by eye. Normalization rescales values between the 1st and 99th percentiles rather than the absolute min and max, since a few extreme pixels can flatten the useful brightness range of the whole image.</p>
@@ -690,7 +690,7 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius
     </svg>
   </div>
   <div class="copy">
-    <p class="eyebrow">Personal project &middot; Python, NumPy, Matplotlib</p>
+    <p class="eyebrow">Python, NumPy, Matplotlib</p>
     <h2>Integrator error against timestep</h2>
     <p>Three numerical integration methods tested on a two-body Earth orbit. Explicit Euler, semi-implicit Euler, and velocity Verlet. Acceleration is given by a = &minus;&mu;r / |r|&sup3;, with Earth as a fixed central mass and the satellite as a point mass.</p>
     <p>Each method runs across timesteps from 1 s to 300 s over seven days, measuring energy and angular momentum conservation, period estimate, and final position error. At dt = 300 s, explicit Euler gains roughly 100% in specific energy and leaves the orbit entirely, semi-implicit Euler oscillates inside a bounded band with no secular drift, and velocity Verlet stays flat. Drag, thrust, third-body gravity, and oblateness are deliberately omitted, so the study measures integration error rather than perturbation.</p>
@@ -798,7 +798,7 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius
     </svg>
   </div>
   <div class="copy">
-    <p class="eyebrow">Personal project &middot; Python, Astropy, SciPy</p>
+    <p class="eyebrow">Python, Astropy, SciPy</p>
     <h2>Period search against ground truth</h2>
     <p>Period searches on stellar light curves, run as two experiments against one shared search module. The first measures a variability period in a real Kepler light curve. The second validates the search on a synthetic curve with a known injected transit, allowing recovery accuracy to be checked against the ground truth.</p>
     <p>The pair shows why method choice matters. Lomb-Scargle analysis cleanly finds the Kepler star's smooth 19.4005-day variability. On a box-shaped transit signal, it locks onto a 1.24-day alias, while Box Least Squares recovers the injected 3.72-day period to within 1.4 minutes.</p>
@@ -845,7 +845,7 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius
     </svg>
   </div>
   <div class="copy">
-    <p class="eyebrow">Personal project &middot; WebGL2, GLSL ES 3.00</p>
+    <p class="eyebrow">WebGL2, GLSL ES 3.00</p>
     <h2>Schwarzschild ray tracer</h2>
     <p>A real-time general-relativistic ray tracer in a single HTML file. Every pixel integrates a null geodesic backward from the camera, using the Schwarzschild metric, in a fragment shader. Geodesics are planar, so integration runs in each ray's own orbital plane using the Binet form, d&sup2;u/d&phi;&sup2; = 3u&sup2; &minus; u, which needs two state variables per ray instead of eight.</p>
     <p>The disk is a thin Keplerian annulus from the ISCO out to 20M, shaded with the exact circular-orbit redshift and g&#8308; bolometric beaming. A toggle sets g = 1 to show the same disk without relativistic shading, which separates the physics from the rendering.</p>
@@ -893,7 +893,7 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius
     </svg>
   </div>
   <div class="copy">
-    <p class="eyebrow">Personal project &middot; Python, NumPy, SciPy</p>
+    <p class="eyebrow">Python, NumPy, SciPy</p>
     <h2>Hubble constant on a planted sample</h2>
     <p>A Hubble constant estimation study on a controlled synthetic galaxy sample. The generator plants the truth at H&#8320; = 67.5 km/s/Mpc with distance and redshift uncertainty, peculiar velocity scatter, and one injected outlier, so every fitting choice is judged against a known answer.</p>
     <p>A weighted fit through the origin on the full sample returns 68.39. Removing the planted outlier at 95 Mpc with a 2&sigma; residual cut moves it to 67.60. One bad galaxy shifts the answer by 0.8 km/s/Mpc, which is the point of the exercise.</p>
@@ -942,7 +942,7 @@ a:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius
     </svg>
   </div>
   <div class="copy">
-    <p class="eyebrow">Personal project &middot; Python, SciPy, Matplotlib</p>
+    <p class="eyebrow">Python, SciPy, Matplotlib</p>
     <h2>CMB acoustic peak extraction</h2>
     <p>Feature extraction on the Planck cosmic microwave background TT power spectrum. The script smooths the spectrum with a Savitzky-Golay filter, locates the first three acoustic peaks by prominence and spacing, converts each peak location to an angular scale through &theta; = 180 / &#8467;, and writes the measurements to a CSV with figures.</p>
     <p>Peak detection runs on the smoothed spectrum with a prominence threshold of 0.20 standard deviations and a minimum separation of 120 in &#8467;. The scope is peak measurement and derived scales, not cosmological parameter fitting.</p>
